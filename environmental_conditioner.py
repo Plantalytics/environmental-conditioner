@@ -5,7 +5,7 @@
 #   every five minutes, transmits to Apache Cassandra DB.
 # License: This source file is copyright (c) Katy Brimm and licensed under the
 #   MIT License. In other words: take it, use it, love it.
-# 	Please see the file LICENSE included in this distribution for terms.
+#   Please see the file LICENSE included in this distribution for terms.
 
 import random
 import sys
