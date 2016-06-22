@@ -1,9 +1,11 @@
-# Plantalytics
-#     Copyright (c) 2016 Sapphire Becker, Katy Brimm, Scott Ewing, 
-#       Matt Fraser, Kelly Ledford, Michael Limb, Steven Ngo, Eric Turley.
-#     This project is licensed under the MIT License.
-#     Please see the file LICENSE in this distribution for license terms.
-# Contact: plantalytics.capstone@gmail.com
+# Author: Katy Brimm
+# Contact: kbrimm@pdx.edu
+# Date: 06/16/16
+# Use: Generates 9 sets of random (temperature, humidity, leaf wetness) tuples
+#   every five minutes, transmits to Apache Cassandra DB.
+# License: This source file is copyright (c) Katy Brimm and licensed under the
+#   MIT License. In other words: take it, use it, love it.
+# 	Please see the file LICENSE included in this distribution for terms.
 
 import random
 import sys
@@ -11,34 +13,30 @@ import time
 from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 
-def get_conditions(vineId, hubId, nodeId):
+def get_conditions(hubId, nodeId):
     # Temp range: 15-85 degrees F
     temperature = random.randint(15, 85)
-    # Humidity range: 25-95%
-    humidity = random.randint(25, 95)
+    # Humidity range: 5-95%
+    humidity = random.randint(5, 95)
     # Wetness range: 0-7000 k-Ohms
     leafwetness = random.randint(0, 7000) 
-    # datasent timestamp
-    datasent = int(time.time()*1000)
-    conditions = (vineId, hubId, nodeId, datasent, temperature,
+    conditions = (hubId, nodeId, int(time.time()*1000), temperature,
                   humidity, leafwetness)
     return conditions
     
 def generate_dataset(itemCount):
     dataset = []
     for n in range(0, itemCount):
-        # For the purposes of demonstration, each vineyard contains 18 nodes.
-        v = int(n/18)
-        # For the purposes of demonstration, each hub supports 6 nodes.
-        h = int(n/6)
-        dataset.append(get_conditions(v, h, n))
+        # For the purposes of demonstration, each hub supports three nodes.
+        h = int(n/3)
+        dataset.append(get_conditions(h, n))
     return dataset
 
 def create_batch(dataset):
-    prologue = ('INSERT INTO plantalytics.environmental_data ( vineid, hubid, '
-                'nodeid, datasent, temperature, humidity, leafwetness, '
+    prologue = ('INSERT INTO capstone_plantalytics.environmental_data ( '
+                'hubid, nodeid, datasent, temperature, humidity, leafwetness, '
                 'batchsent ) VALUES ( ')
-    epilogue = str(int(time.time()*1000)) + ' );\n'
+    epilogue = ' );\n'
     batch = 'BEGIN BATCH\n'
     # For each set of conditions in the data set, create a query
     for conditions in dataset:
@@ -47,7 +45,8 @@ def create_batch(dataset):
         # Add each value in the conditions to the query
         for value in conditions:
             query += str(value) + ', '
-        # Add epilogue to insert statement
+        # Add a batch sent timestamp
+        query += str(int(time.time()*1000))
         query += epilogue
         batch += query
     batch += 'APPLY BATCH;'
@@ -55,15 +54,11 @@ def create_batch(dataset):
     return batch
     
 def push_batch(batch):
-    try:
-        auth = PlainTextAuthProvider(username=*username*, password=*password*)
-        cluster = Cluster(contact_points=[*ip*], auth_provider=auth)
-        session = cluster.connect(*keyspace*)
-        session.execute(batch)
-    except Exception as oops:
-        print ('EXCEPTION:\n   ' + str(oops))
-    finally:
-        session.shutdown()
+    auth = PlainTextAuthProvider(username=*username*, password=*password*)
+    cluster = Cluster(contact_points=[*ip*], auth_provider=auth)
+    session = cluster.connect(*keyspace*)
+    session.execute(batch)
+    session.shutdown()
 
 def bedtime():
     increment = 15
@@ -72,23 +67,12 @@ def bedtime():
         time.sleep(increment)
     
 def main():
-    # Parse the first supplied argument as an integer. If this succeeds, 
-    #   launch the loop with the speficied input.
-    try:
-        input = sys.argv[1]
-        nodes = int(input)
-    # Otherwise, run with a 9 node sample
-    except:
-        nodes = 9    
-    # Loop until user interrupt
     i = 1
     while 1:
-        print ('\n   Dataset no: ' + str(i))
+        print ('Dataset no: ' + str(i))
         i += 1
-        # Generates CQL batch insertion string for each node
-        batch = create_batch(generate_dataset(nodes))
-        # Pushes batch to server, executes statement
-        push_batch(batch)
+        # Generates 9 nodes of data
+        push_batch(create_batch(generate_dataset(9)))
         bedtime()
     
 if __name__ == "__main__":
